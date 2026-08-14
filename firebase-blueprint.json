@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "ERPState": {
+      "title": "ERPState",
+      "description": "Divine Traders ERP central state",
+      "type": "object",
+      "properties": {
+        "parties": {
+          "type": "array",
+          "description": "Parties and contacts list"
+        },
+        "items": {
+          "type": "array",
+          "description": "Inventory items list"
+        },
+        "purchaseOrders": {
+          "type": "array",
+          "description": "Purchase orders list"
+        },
+        "purchaseReturns": {
+          "type": "array",
+          "description": "Purchase returns list"
+        },
+        "goodsReceipts": {
+          "type": "array",
+          "description": "Goods receipts list"
+        },
+        "purchaseBills": {
+          "type": "array",
+          "description": "Purchase bills list"
+        },
+        "saleInvoices": {
+          "type": "array",
+          "description": "Sale invoices list"
+        },
+        "payments": {
+          "type": "array",
+          "description": "Payments list"
+        },
+        "stockMovements": {
+          "type": "array",
+          "description": "Stock movements list"
+        },
+        "ledger": {
+          "type": "array",
+          "description": "Ledger entries list"
+        },
+        "teamMembers": {
+          "type": "array",
+          "description": "Team members list"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "erp/{stateId}": {
+      "schema": "ERPState",
+      "description": "Document holding the synced ERP state"
+    }
+  }
+}

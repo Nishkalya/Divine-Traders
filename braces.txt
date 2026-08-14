@@ -1,0 +1,454 @@
+1:import React, { useState } from "react";
+2:import { ERPState, Item, LedgerEntry } from "../types";
+3:import { formatINR, getConversionFactor } from "../utils";
+4:import { Plus, Search, Edit2, AlertTriangle, CheckCircle, Package, Globe, Trash2, X } from "lucide-react";
+6:interface ItemsStockViewProps {
+9:}
+11:export default function ItemsStockView({ state, onUpdateState }: ItemsStockViewProps) {
+33:  const handleAddNewCategory = () => {
+35:    if (!trimmed) {
+38:    }
+39:    if (!allCategories.includes(trimmed)) {
+40:      onUpdateState({...state, customCategories: [...customCategories, trimmed]});
+41:    }
+45:  };
+53:  const handleAddCategoryInline = () => {
+57:  };
+59:  const handleEditCategoryInline = () => {
+65:  };
+67:  const handleDeleteCategoryInline = () => {
+72:        `Are you sure you want to delete category "${category}"? This will also update any items currently mapped to this category.`
+74:    ) {
+76:      const updatedItems = state.items.map((item) => {
+77:        if (item.category === category) {
+78:          return { ...item, category: fallback };
+79:        }
+81:      });
+83:      onUpdateState({
+87:      });
+90:    }
+91:  };
+93:  const handleSaveInlineCategory = (e: React.FormEvent) => {
+96:    if (!trimmed) {
+99:    }
+101:    if (inlineCategoryMode === "create") {
+102:      if (!allCategories.includes(trimmed)) {
+103:        onUpdateState({...state, customCategories: [...customCategories, trimmed]});
+104:      }
+106:    } else {
+108:      if (original === trimmed) {
+111:      }
+113:      if (allCategories.includes(trimmed) && trimmed !== original) {
+114:        alert(`The category "${trimmed}" already exists.`);
+116:      }
+119:      if (!nextCustom.includes(trimmed) && customCategories.includes(original)) {
+121:      }
+125:      const updatedItems = state.items.map((item) => {
+126:        if (item.category === original) {
+127:          return { ...item, category: trimmed };
+128:        }
+130:      });
+132:      onUpdateState({
+136:      });
+139:  };
+154:  const handleAddNewUnit = () => {
+156:    if (!trimmed) {
+159:    }
+160:    if (!allUnits.includes(trimmed)) {
+161:      onUpdateState({...state, customUnits: [...customUnits, trimmed]});
+162:    }
+166:  };
+185:  const handleAddUnitInline = (field: "purchase" | "sales") => {
+190:  };
+192:  const handleEditUnitInline = (field: "purchase" | "sales") => {
+200:  };
+202:  const handleDeleteUnitInline = (field: "purchase" | "sales") => {
+206:    const updatedItems = state.items.map((item) => {
+207:      const newItem = { ...item };
+212:    });
+220:        `Are you sure you want to delete unit "${currentVal}"? This will also remove it from any items or unit conversion rules using it.`
+222:    ) {
+223:      onUpdateState({
+228:      });
+230:      if (field === "purchase") {
+232:      } else {
+234:      }
+235:    }
+236:  };
+238:  const handleSaveInlineUnit = (e: React.FormEvent) => {
+241:    if (!trimmed) {
+244:    }
+246:    if (inlineUnitMode === "create") {
+247:      if (!allUnits.includes(trimmed)) {
+248:        onUpdateState({...state, customUnits: [...customUnits, trimmed]});
+249:      }
+250:      if (inlineUnitField === "purchase") {
+252:      } else {
+254:      }
+255:    } else {
+257:      if (original === trimmed) {
+260:      }
+262:      if (allUnits.includes(trimmed) && trimmed !== original) {
+263:        alert(`The unit "${trimmed}" already exists.`);
+265:      }
+268:      if (!nextCustom.includes(trimmed) && customUnits.includes(original)) {
+270:      }
+276:      const updatedItems = state.items.map((item) => {
+277:        const newItem = { ...item };
+282:      });
+284:      const updatedConversions = (state.unitConversions || []).map((c) => {
+285:        const newC = { ...c };
+289:      });
+291:      onUpdateState({
+296:      });
+297:    }
+300:  };
+313:  const handleEditClick = (item: Item) => {
+330:  };
+332:  const handleCreateClick = () => {
+334:    setCode(`DT-ITEM-00${state.items.length + 1}`);
+349:  };
+351:  const handleSubmitItem = (e: React.FormEvent) => {
+353:    if (!code || !name) {
+356:    }
+358:    if (itemTaxType === "GST" && !hsnCode) {
+361:    }
+365:    if (editingItem) {
+367:      updatedItems = updatedItems.map((item) => {
+368:        if (item.id === editingItem.id) {
+369:          return {
+385:          };
+386:        }
+388:      });
+389:    } else {
+391:      const newItem: Item = {
+407:      };
+409:    }
+411:    onUpdateState({ ...state, items: updatedItems });
+414:  };
+417:  const handleAddConversionRule = (e: React.FormEvent) => {
+423:    if (!from || !to || !fact || isNaN(fact) || fact <= 0) {
+426:    }
+431:    if (exists) {
+432:      alert(`A conversion rule from ${from} to ${to} already exists.`);
+434:    }
+436:    const newRule = {
+441:    };
+443:    onUpdateState({
+446:    });
+451:  };
+453:  const handleDeleteConversionRule = (id: string) => {
+454:    if (confirm("Are you sure you want to delete this conversion rule?")) {
+456:      onUpdateState({
+459:      });
+460:    }
+461:  };
+473:              onClick={() => { setActiveSubTab("catalog"); setIsCreating(false); }}
+474:              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+478:              }`}
+483:              onClick={() => { setActiveSubTab("conversions"); setIsCreating(false); }}
+484:              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+488:              }`}
+494:          {activeSubTab === "catalog" && !isCreating && (
+496:              onClick={handleCreateClick}
+499:              <Plus size={16} /> Add SKU
+501:          )}
+505:      {activeSubTab === "catalog" && (
+507:          {/* Create / Edit Form */}
+508:          {isCreating && (
+509:        <form onSubmit={handleSubmitItem} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
+511:            {editingItem ? `Edit SKU ${editingItem.code}` : "Add New Stock Product"}
+520:                value={code}
+521:                onChange={(e) => setCode(e.target.value)}
+532:                value={name}
+533:                onChange={(e) => setName(e.target.value)}
+545:                    onClick={handleAddCategoryInline}
+548:                    <Plus size={10} /> Add New
+550:                  {category && (
+554:                        onClick={handleEditCategoryInline}
+557:                        <Edit2 size={10} /> Edit
+561:                        onClick={handleDeleteCategoryInline}
+564:                        <Trash2 size={10} /> Delete
+567:                  )}
+572:                value={category}
+573:                onChange={(e) => setCategory(e.target.value)}
+576:                {allCategories.map((cat) => (
+577:                  <option key={cat} value={cat}>
+578:                    {cat === "Grains" ? "Grains & Pulses" :
+581:                     cat === "Spices" ? "Spices & Condiments" : cat}
+583:                ))}
+591:              value={description}
+592:              onChange={(e) => setDescription(e.target.value)}
+594:              rows={2}
+599:          {/* Tax Information Section */}
+604:                value={itemTaxType}
+605:                onChange={(e) => setItemTaxType(e.target.value as any)}
+613:            {itemTaxType === "GST" && (
+625:                      <Globe size={11} /> Look up HSN Online
+631:                    value={hsnCode}
+632:                    onChange={(e) => setHsnCode(e.target.value)}
+641:                    value={gstRate}
+642:                    onChange={(e) => setGstRate(Number(e.target.value))}
+653:            )}
+663:                value={purchasePrice || ""}
+664:                onChange={(e) => setPurchasePrice(parseFloat(e.target.value) || 0)}
+675:                value={salePrice || ""}
+676:                onChange={(e) => setSalePrice(parseFloat(e.target.value) || 0)}
+689:                    onClick={() => handleAddUnitInline("purchase")}
+692:                    <Plus size={10} /> Add New
+694:                  {purchaseUnit && (
+698:                        onClick={() => handleEditUnitInline("purchase")}
+701:                        <Edit2 size={10} /> Edit
+705:                        onClick={() => handleDeleteUnitInline("purchase")}
+708:                        <Trash2 size={10} /> Delete
+711:                  )}
+715:                value={purchaseUnit}
+716:                onChange={(e) => setPurchaseUnit(e.target.value)}
+720:                {allUnits.map((u) => (
+721:                  <option key={u} value={u}>{u}</option>
+722:                ))}
+732:                    onClick={() => handleAddUnitInline("sales")}
+735:                    <Plus size={10} /> Add New
+737:                  {salesUnit && (
+741:                        onClick={() => handleEditUnitInline("sales")}
+744:                        <Edit2 size={10} /> Edit
+748:                        onClick={() => handleDeleteUnitInline("sales")}
+751:                        <Trash2 size={10} /> Delete
+754:                  )}
+758:                value={salesUnit}
+759:                onChange={(e) => setSalesUnit(e.target.value)}
+763:                {allUnits.map((u) => (
+764:                  <option key={u} value={u}>{u}</option>
+765:                ))}
+775:                value={minStockLevel}
+776:                onChange={(e) => setMinStockLevel(parseInt(e.target.value) || 0)}
+785:                Initial Stock Balance (In Base Unit) {editingItem && "(Manual Override)"}
+791:                value={stockQuantity}
+792:                onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
+801:              onClick={() => setIsCreating(false)}
+814:      )}
+816:      {/* Catalog Directory List */}
+817:      {!isCreating && (
+822:                <Search size={16} />
+826:                value={searchTerm}
+827:                onChange={(e) => setSearchTerm(e.target.value)}
+833:              Total Catalog SKUs: {state.items.length} products
+837:          {filteredItems.length === 0 ? (
+855:                  {filteredItems.map((item) => {
+858:                      <tr key={item.id} className="hover:bg-gray-50/40">
+859:                        <td className="p-4 font-bold font-mono text-gray-900">{item.code}</td>
+861:                          <p className="font-semibold text-gray-900">{item.name}</p>
+862:                          <p className="text-[10px] text-gray-400 max-w-sm truncate">{item.description}</p>
+864:                            <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">Base: {item.unit}</span>
+865:                            {item.purchaseUnit && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">Purchase: {item.purchaseUnit}</span>}
+866:                            {item.salesUnit && <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-medium">Sales: {item.salesUnit}</span>}
+869:                            {item.item_tax_type === "NON_GST" ? (
+872:                              <span className="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">GST Item · HSN: {item.hsnCode || "N/A"} · {item.gstRate !== undefined ? item.gstRate : 18}%</span>
+873:                            )}
+878:                            {item.category}
+882:                          <div>{item.purchasePrice < 1 ? `₹${item.purchasePrice.toFixed(2)}` : formatINR(item.purchasePrice)}<span className="text-[10px] text-gray-400">/{item.unit}</span></div>
+883:                          {item.salesUnit && item.salesUnit !== item.unit && (
+885:                              ({formatINR(item.purchasePrice * getConversionFactor(item.salesUnit, item.unit, state.unitConversions))}/{item.salesUnit})
+887:                          )}
+890:                          <div>{item.salePrice < 1 ? `₹${item.salePrice.toFixed(2)}` : formatINR(item.salePrice)}<span className="text-[10px] text-gray-400">/{item.unit}</span></div>
+891:                          {item.salesUnit && item.salesUnit !== item.unit && (
+893:                              {formatINR(item.salePrice * getConversionFactor(item.salesUnit, item.unit, state.unitConversions))} / {item.salesUnit}
+895:                          )}
+898:                          {item.stockQuantity.toLocaleString()} <span className="text-[10px] font-normal text-gray-400">{item.unit}</span>
+899:                          {item.salesUnit && item.salesUnit !== item.unit && (
+901:                              ({(item.stockQuantity * getConversionFactor(item.unit, item.salesUnit, state.unitConversions)).toFixed(2).replace(/\.00$/, "")} {item.salesUnit})
+903:                          )}
+906:                          {isLowStock ? (
+908:                              <AlertTriangle size={11} /> Reorder Low
+912:                              <CheckCircle size={11} /> Stock OK
+914:                          )}
+919:                              onClick={() => handleEditClick(item)}
+923:                              <Edit2 size={13} />
+926:                              onClick={() => {
+927:                                if (confirm(`Are you sure you want to delete ${item.name} (${item.code})? This will remove the item from the catalog and cascade updates to all connected transactions.`)) {
+930:                                  const isInterstateParty = (partyId: string) => {
+935:                                  };
+941:                                  const updatedPOs = state.purchaseOrders.map(po => {
+953:                                    remainingItems.forEach(pi => {
+957:                                      if (taxRate > 0) {
+958:                                        if (isInterstate) {
+960:                                        } else {
+963:                                        }
+964:                                      }
+965:                                    });
+968:                                    return {
+972:                                    };
+973:                                  });
+976:                                  const updatedGRNs = state.goodsReceipts.map(grn => {
+980:                                    return {
+983:                                    };
+984:                                  });
+987:                                  const updatedBills = state.purchaseBills.map(bill => {
+991:                                    if (bill.goodsReceiptId) {
+994:                                      if (originalGrn && originalGrn.items.some(gi => gi.itemId === itemIdToDelete)) {
+996:                                        if (grn) {
+998:                                          if (po) {
+1000:                                            grn.items.forEach((grnItem) => {
+1004:                                            });
+1006:                                          }
+1007:                                        }
+1008:                                      }
+1009:                                    } else if (bill.purchaseOrderId) {
+1012:                                      if (originalPo && originalPo.items.some(pi => pi.itemId === itemIdToDelete)) {
+1014:                                        if (po) {
+1016:                                        }
+1017:                                      }
+1018:                                    }
+1029:                                    return {
+1036:                                    };
+1037:                                  });
+1040:                                  const updatedInvoices = state.saleInvoices.map(inv => {
+1052:                                    remainingItems.forEach(si => {
+1056:                                      if (taxRate > 0) {
+1057:                                        if (isInterstate) {
+1059:                                        } else {
+1062:                                        }
+1063:                                      }
+1064:                                    });
+1067:                                    return {
+1075:                                    };
+1076:                                  });
+1079:                                  const updatedReturns = (state.purchaseReturns || []).map(ret => {
+1091:                                    remainingItems.forEach(ri => {
+1095:                                      if (taxRate > 0) {
+1096:                                        if (isInterstate) {
+1098:                                        } else {
+1101:                                        }
+1102:                                      }
+1103:                                    });
+1106:                                    return {
+1114:                                    };
+1115:                                  });
+1126:                                    .filter(bill => {
+1127:                                      if (bill.goodsReceiptId) {
+1130:                                      } else if (bill.purchaseOrderId) {
+1133:                                      }
+1135:                                    })
+1142:                                  let filteredLedger = state.ledger.filter(l => {
+1147:                                  });
+1151:                                  updatedInvoices.forEach(inv => {
+1157:                                    if (customerObj) {
+1163:                                      newLedgerEntries.push({
+1164:                                        id: `${ledgerIdBase}-a`,
+1173:                                        notes: `Sales Invoice ${targetInvoiceNumber} (Updated)`,
+1174:                                      });
+1176:                                      newLedgerEntries.push({
+1177:                                        id: `${ledgerIdBase}-b`,
+1185:                                        notes: `Revenue from Sales Invoice ${targetInvoiceNumber} (Updated)`,
+1186:                                      });
+1188:                                      if (inv.cgst > 0 || inv.sgst > 0) {
+1189:                                        newLedgerEntries.push({
+1190:                                          id: `${ledgerIdBase}-c`,
+1198:                                          notes: `Output CGST + SGST on Sales Invoice ${targetInvoiceNumber} (Updated)`,
+1199:                                        });
+1200:                                      }
+1202:                                      if (inv.igst > 0) {
+1203:                                        newLedgerEntries.push({
+1204:                                          id: `${ledgerIdBase}-d`,
+1212:                                          notes: `Output IGST on Sales Invoice ${targetInvoiceNumber} (Updated)`,
+1213:                                        });
+1214:                                      }
+1215:                                    }
+1216:                                  });
+1218:                                  updatedBills.forEach(bill => {
+1221:                                    if (vendorObj) {
+1227:                                      newLedgerEntries.push({
+1228:                                        id: `${ledgerIdBase}-a`,
+1237:                                        notes: `Vendor Bill ${billNumber} received (Updated)`,
+1238:                                      });
+1240:                                      newLedgerEntries.push({
+1241:                                        id: `${ledgerIdBase}-b`,
+1249:                                        notes: `Inventory Purchase from Vendor Bill ${billNumber} (Updated)`,
+1250:                                      });
+1252:                                      if (bill.cgst > 0 || bill.sgst > 0) {
+1253:                                        newLedgerEntries.push({
+1254:                                          id: `${ledgerIdBase}-c`,
+1262:                                          notes: `Input CGST + SGST on Bill ${billNumber} (Updated)`,
+1263:                                        });
+1264:                                      }
+1266:                                      if (bill.igst > 0) {
+1267:                                        newLedgerEntries.push({
+1268:                                          id: `${ledgerIdBase}-d`,
+1276:                                          notes: `Input IGST on Bill ${billNumber} (Updated)`,
+1277:                                        });
+1278:                                      }
+1279:                                    }
+1280:                                  });
+1282:                                  updatedReturns.forEach(ret => {
+1285:                                    if (vendorObj && ret.status === "Returned") {
+1292:                                        {
+1293:                                          id: `${ledgerIdBase}-a`,
+1302:                                          notes: `Debit Note ${returnNumber}: Stock returned to Vendor (Updated)`,
+1303:                                        },
+1304:                                        {
+1305:                                          id: `${ledgerIdBase}-b`,
+1313:                                          notes: `Purchase reversal against Return ${returnNumber} (Updated)`,
+1314:                                        }
+1318:                                      if (taxAmount > 0) {
+1319:                                        newLedgerEntries.push({
+1320:                                          id: `${ledgerIdBase}-c`,
+1328:                                          notes: `ITC reversal for Purchase Return ${returnNumber} (Updated)`,
+1329:                                        });
+1330:                                      }
+1331:                                    }
+1332:                                  });
+1334:                                  onUpdateState({
+1344:                                  });
+1345:                                }
+1346:                              }}
+1350:                              <Trash2 size={13} />
+1356:                  })}
+1360:          )}
+1362:      )}
+1364:      )}
+1366:      {activeSubTab === "conversions" && (
+1368:          {/* Add Conversion Rule Form */}
+1369:          <form onSubmit={handleAddConversionRule} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
+1378:                  value={newFromUnit}
+1379:                  onChange={(e) => setNewFromUnit(e.target.value)}
+1390:                  value={newToUnit}
+1391:                  onChange={(e) => setNewToUnit(e.target.value)}
+1404:                  value={newFactor}
+1405:                  onChange={(e) => setNewFactor(e.target.value !== "" ? parseFloat(e.target.value) : "")}
+1424:          {/* Master Conversion Table */}
+1428:              <span className="text-xs font-mono text-gray-400">Total Rules: {(state.unitConversions || []).length}</span>
+1431:            {(!state.unitConversions || state.unitConversions.length === 0) ? (
+1446:                    {state.unitConversions.map((rule) => (
+1447:                      <tr key={rule.id} className="hover:bg-gray-50/40">
+1448:                        <td className="p-4 font-bold font-mono text-gray-900">{rule.fromUnit}</td>
+1449:                        <td className="p-4 font-bold font-mono text-emerald-800">{rule.toUnit}</td>
+1450:                        <td className="p-4 text-right font-bold font-mono">{rule.factor}</td>
+1452:                          1 {rule.fromUnit} is equal to {rule.factor} {rule.toUnit}(s)
+1456:                            onClick={() => handleDeleteConversionRule(rule.id)}
+1460:                            <Trash2 size={13} />
+1464:                    ))}
+1468:            )}
+1471:      )}
+1473:      {/* Inline Unit Registration Modal */}
+1474:      {showInlineUnitModal && (
+1477:            {/* Emerald border top bar */}
+1483:                  {inlineUnitMode === "edit" ? `Modify ${inlineUnitField === "purchase" ? "Purchase" : "Sales"} Unit` : `Register New ${inlineUnitField === "purchase" ? "Purchase" : "Sales"} Unit`}
+1487:                  onClick={() => setShowInlineUnitModal(false)}
+1490:                  <X size={16} />
+1494:              <form onSubmit={handleSaveInlineUnit} className="space-y-4">
+1500:                    value={inlineUnitValue}
+1501:                    onChange={(e) => setInlineUnitValue(e.target.value)}
+1511:                    onClick={() => setShowInlineUnitModal(false)}
+1527:      )}
+1529:      {/* Inline Category Registration Modal */}
+1530:      {showInlineCategoryModal && (
+1533:            {/* Emerald border top bar */}
+1539:                  {inlineCategoryMode === "edit" ? "Modify Category Name" : "Register New Category"}
+1543:                  onClick={() => setShowInlineCategoryModal(false)}
+1546:                  <X size={16} />
+1550:              <form onSubmit={handleSaveInlineCategory} className="space-y-4">
+1556:                    value={inlineCategoryValue}
+1557:                    onChange={(e) => setInlineCategoryValue(e.target.value)}
+1567:                    onClick={() => setShowInlineCategoryModal(false)}
+1583:      )}
+1586:}

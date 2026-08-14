@@ -1,0 +1,6 @@
+{
+  "name": "Divine Traders ERP",
+  "description": "Comprehensive ERP dashboard for Divine Traders featuring Sales, Purchase Orders, Goods Receipts, Bills, Vendor Outstanding, Payments, Stock, Reports, Ledger, and Gemini AI Analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
