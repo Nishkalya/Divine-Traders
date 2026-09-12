@@ -98,6 +98,7 @@ export const ERP_MODULES: ERPModuleDefinition[] = [
   { id: "factory-expenses", name: "Factory Expenses", category: "Finance", permissionKey: "factoryExpenses" },
   { id: "reports", name: "Reports", category: "Finance", permissionKey: "reports" },
   { id: "admin-users", name: "User Administration", category: "Admin", permissionKey: "adminUsers" },
+  { id: "audit-log", name: "Audit Trail & Logs", category: "Admin", permissionKey: "auditLog" },
   { id: "data-backup", name: "Data Backup & Restore", category: "Admin", permissionKey: "dataBackup" },
   { id: "settings", name: "Settings", category: "Admin", permissionKey: "companyProfile" },
 ];

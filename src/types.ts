@@ -242,9 +242,34 @@ export interface TeamMemberPermissions {
   companyFunding?: boolean;
   factoryExpenses?: boolean;
   dataBackup?: boolean;
+  auditLog?: boolean;
   backupView?: boolean;
   backupExport?: boolean;
   backupRestore?: boolean;
+}
+
+export interface AuditLogChange {
+  field: string;
+  label?: string;
+  oldValue?: any;
+  newValue?: any;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string; // ISO 8601 string
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  role?: string;
+  action: "CREATE" | "UPDATE" | "DELETE" | "RESTORE" | "IMPORT" | "TRANSFER" | "LOGIN" | "STATUS_CHANGE" | "RESET" | string;
+  module: string;
+  entityId?: string;
+  entityName?: string;
+  description: string;
+  changes?: AuditLogChange[];
+  metadata?: Record<string, any>;
+  ipAddress?: string;
 }
 
 export interface ProductionRun {
@@ -437,4 +462,5 @@ export interface ERPState {
   roles?: UserRole[];
   activityLogs?: UserActivityLog[];
   loginHistory?: UserLoginHistory[];
+  auditLogs?: AuditLogEntry[];
 }

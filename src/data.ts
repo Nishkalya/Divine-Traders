@@ -1,4 +1,4 @@
-import { ERPState, Party, Item, PurchaseOrder, GoodsReceipt, PurchaseBill, SaleInvoice, Payment, StockMovement, LedgerEntry, TeamMember, Warehouse, StockTransfer, FactoryExpense, UserRole } from "./types";
+import { ERPState, Party, Item, PurchaseOrder, GoodsReceipt, PurchaseBill, SaleInvoice, Payment, StockMovement, LedgerEntry, TeamMember, Warehouse, StockTransfer, FactoryExpense, UserRole, AuditLogEntry } from "./types";
 
 // Helper to generate IDs
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -212,6 +212,51 @@ export const INITIAL_ROLES: UserRole[] = [
   }
 ];
 
+export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
+  {
+    id: "audit-init-001",
+    timestamp: "2026-08-14T03:30:00.000Z",
+    userId: "Vishal",
+    userName: "Vishal Kumar (Admin)",
+    userEmail: "vishal291137@gmail.com",
+    role: "Admin",
+    action: "CREATE",
+    module: "Warehouse Master",
+    entityId: "wh-main",
+    entityName: "Main Warehouse (MWH-01)",
+    description: "Configured primary operational warehouse at Central Logistics Park, Vashi",
+    ipAddress: "192.168.1.104"
+  },
+  {
+    id: "audit-init-002",
+    timestamp: "2026-08-14T03:45:00.000Z",
+    userId: "Vishal",
+    userName: "Vishal Kumar (Admin)",
+    userEmail: "vishal291137@gmail.com",
+    role: "Admin",
+    action: "CREATE",
+    module: "Factory Expenses",
+    entityId: "exp-001",
+    entityName: "EXP-00001 - Electricity",
+    description: "Recorded Factory Expense #EXP-00001 (Electricity) for ₹47,200 to MSEDCL Power Distribution Ltd",
+    ipAddress: "192.168.1.104"
+  },
+  {
+    id: "audit-init-003",
+    timestamp: "2026-08-14T04:10:00.000Z",
+    userId: "Vishal",
+    userName: "Vishal Kumar (Admin)",
+    userEmail: "vishal291137@gmail.com",
+    role: "Admin",
+    action: "UPDATE",
+    module: "Company Profile",
+    entityId: "company-profile",
+    entityName: "DIVINE TRADERS",
+    description: "Updated organization profile and State Bank of India account details",
+    ipAddress: "192.168.1.104"
+  }
+];
+
 export const INITIAL_ERP_STATE: ERPState = {
   parties: INITIAL_PARTIES,
   items: INITIAL_ITEMS,
@@ -236,4 +281,5 @@ export const INITIAL_ERP_STATE: ERPState = {
   salesAssigneeName: "Vishal Kumar",
   salesAssignees: ["Vishal Kumar"],
   roles: INITIAL_ROLES,
+  auditLogs: INITIAL_AUDIT_LOGS,
 };

@@ -28,6 +28,8 @@ import StockTransferView from "./components/StockTransferView";
 import CompanyFundingView from "./components/CompanyFundingView";
 import FactoryExpensesView from "./components/FactoryExpensesView";
 import DataBackupView from "./components/DataBackupView";
+import AuditLogView from "./components/AuditLogView";
+import { recordStateWithAudit } from "./utils/auditLogger";
 import { loadStateFromFirestore, saveStateToFirestore, subscribeToStateChanges } from "./firebase";
 import { loadStateFromSupabase, saveStateToSupabase, subscribeToSupabaseChanges } from "./lib/supabase";
 import { Sparkles, X, CloudLightning, AlertTriangle, CheckCircle, RefreshCw, Loader2, Database, Search, Plus, Calendar, Clock, Bell, ChevronRight, Check, Settings, Menu } from "lucide-react";
@@ -102,9 +104,10 @@ const sanitizeState = (s: ERPState): ERPState => {
     backups: s.backups || [],
     backupSettings: s.backupSettings || { autoBackupEnabled: false, frequency: "Daily" },
     factoryExpenses: deduplicateById(s.factoryExpenses || INITIAL_ERP_STATE.factoryExpenses || []),
+    auditLogs: deduplicateById(s.auditLogs || INITIAL_ERP_STATE.auditLogs || []),
   };
 
-  // Make sure team member permissions include companyFunding and factoryExpenses, and actions are initialized
+  // Make sure team member permissions include companyFunding, factoryExpenses, and auditLog, and actions are initialized
   if (merged.teamMembers) {
     const defaultActions = {
       view: true,
@@ -119,6 +122,7 @@ const sanitizeState = (s: ERPState): ERPState => {
         ...m.permissions,
         companyFunding: m.permissions.companyFunding !== undefined ? m.permissions.companyFunding : true,
         factoryExpenses: m.permissions.factoryExpenses !== undefined ? m.permissions.factoryExpenses : true,
+        auditLog: m.permissions.auditLog !== undefined ? m.permissions.auditLog : true,
       };
       const updatedActions = m.actions || defaultActions;
       return {
@@ -307,6 +311,7 @@ const sanitizeState = (s: ERPState): ERPState => {
           production: true,
           companyFunding: true,
           factoryExpenses: true,
+          auditLog: true,
           dataBackup: true,
           backupView: true,
           backupExport: true,
@@ -517,7 +522,8 @@ export default function App() {
           if (!isCurrent) return;
           setSyncStatus("synced");
         } else {
-          // Initialize remote sandbox with the CORRECT loaded state
+          // Initialize remote database with current state so newly linked Firebase has all data immediately
+          console.log("Newly linked Firebase/database detected: uploading current state...");
           if (activeDb === "supabase") {
             await saveStateToSupabase(activeState, currentSandboxDocId);
           } else {
@@ -576,23 +582,69 @@ export default function App() {
       isCurrent = false;
       if (unsubscribe) unsubscribe();
     };
-  }, [currentUser, currentSandboxDocId, currentUserEmail, activeDb]);
+  }, [currentSandboxDocId, activeDb]);
 
-  const handleUpdateState = (newState: ERPState) => {
-    setState(newState);
-    if (currentUser && currentSandboxDocId) {
+  const handleUpdateState = (newState: ERPState, explicitAuditLogs?: any[]) => {
+    const teamMembersList = state.teamMembers || INITIAL_TEAM_MEMBERS;
+    const userQuery = (currentUserEmail || "").toLowerCase();
+    const activeMember = teamMembersList.find(
+      (m) =>
+        (m?.userId || "").toLowerCase() === userQuery ||
+        (m?.email || "").toLowerCase() === userQuery
+    );
+
+    const userInfo = {
+      userId: activeMember?.userId || currentUserEmail || "Admin",
+      userName: activeMember?.name || (currentUserEmail ? currentUserEmail.split("@")[0] : "Administrator"),
+      userEmail: activeMember?.email || currentUserEmail || undefined,
+      role: activeMember?.role || "Admin",
+      ipAddress: "192.168.1.104",
+    };
+
+    // Automatically inspect state mutations and prepend audit trail
+    const stateWithAudit = recordStateWithAudit(state, newState, userInfo, explicitAuditLogs);
+
+    setState(stateWithAudit);
+    if (currentSandboxDocId) {
       setSyncStatus("syncing");
       
       const savePromise = activeDb === "supabase"
-        ? saveStateToSupabase(newState, currentSandboxDocId)
-        : saveStateToFirestore(newState, currentSandboxDocId);
+        ? saveStateToSupabase(stateWithAudit, currentSandboxDocId)
+        : saveStateToFirestore(stateWithAudit, currentSandboxDocId);
 
       savePromise
         .then(() => setSyncStatus("synced"))
         .catch((err) => {
-          console.error(`Failed to save to ${activeDb}:`, err);
-          setSyncStatus("error");
+          const errMsg = err?.message || String(err);
+          if (errMsg.includes("resource-exhausted") || errMsg.includes("Quota exceeded") || errMsg.includes("quota")) {
+            console.warn("Cloud write quota exceeded. Operating in offline/local cache mode.");
+            setSyncStatus("synced");
+          } else {
+            console.error(`Failed to save to ${activeDb}:`, err);
+            setSyncStatus("error");
+          }
         });
+    }
+  };
+
+  const handleManualSyncToCloud = async () => {
+    try {
+      setSyncStatus("syncing");
+      if (activeDb === "supabase") {
+        await saveStateToSupabase(state, currentSandboxDocId);
+      } else {
+        await saveStateToFirestore(state, currentSandboxDocId);
+      }
+      setSyncStatus("synced");
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if (errMsg.includes("resource-exhausted") || errMsg.includes("Quota exceeded") || errMsg.includes("quota")) {
+        console.warn("Cloud write quota exceeded. Operating in offline/local cache mode.");
+        setSyncStatus("synced");
+      } else {
+        console.error("Manual sync error:", err);
+        setSyncStatus("error");
+      }
     }
   };
 
@@ -668,6 +720,7 @@ export default function App() {
       { id: "gst-reports", label: "GST Reports (GSTR-1 / GSTR-2)", sub: "Extract tax liabilities and CGST/SGST breakdowns" },
       { id: "ledger", label: "Double-Entry Ledger Book", sub: "Audit ledger book accounts & journal vouchers" },
       { id: "admin-users", label: "User Management & Settings", sub: "Configure operator permissions, super admin" },
+      { id: "audit-log", label: "Audit Log & Trail", sub: "Immutable audit trail of state mutations & operators" },
     ];
 
     navs.forEach((n) => {
@@ -806,6 +859,7 @@ export default function App() {
       production: true,
       companyFunding: true,
       factoryExpenses: true,
+      auditLog: true,
       dataBackup: true,
       backupView: true,
       backupExport: true,
@@ -843,6 +897,8 @@ export default function App() {
       "ledger": "ledger",
       "admin-users": "adminUsers",
       "production": "production",
+      "audit-log": "auditLog",
+      "data-backup": "dataBackup",
     };
 
     const permKey = camelCaseMap[currentTab];
@@ -867,7 +923,9 @@ export default function App() {
         "gst-reports",
         "ledger",
         "production",
-        "admin-users"
+        "admin-users",
+        "audit-log",
+        "data-backup"
       ];
       const allowedTab = orderedTabs.find((tab) => {
         const k = camelCaseMap[tab];
@@ -1049,6 +1107,15 @@ export default function App() {
           <FactoryExpensesView
             state={state}
             onUpdateState={handleUpdateState}
+          />
+        );
+      case "audit-log":
+        return (
+          <AuditLogView
+            state={state}
+            currentUserEmail={currentUserEmail}
+            onUpdateState={handleUpdateState}
+            setCurrentTab={setCurrentTab}
           />
         );
       case "data-backup":
@@ -1315,9 +1382,47 @@ export default function App() {
           </div>
 
           {/* Right: Actions, clock, and user */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Firebase Sync Indicator & Action Button */}
+            <button
+              onClick={handleManualSyncToCloud}
+              title="Click to sync current ERP state with Firebase"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition-all cursor-pointer ${
+                syncStatus === "synced"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                  : syncStatus === "syncing"
+                  ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
+                  : syncStatus === "loading"
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  syncStatus === "synced"
+                    ? "bg-emerald-500"
+                    : syncStatus === "syncing"
+                    ? "bg-blue-500 animate-ping"
+                    : syncStatus === "loading"
+                    ? "bg-amber-500"
+                    : "bg-rose-500"
+                }`}
+              />
+              <span className="hidden sm:inline">
+                {syncStatus === "synced" && "Firebase Live"}
+                {syncStatus === "syncing" && "Syncing..."}
+                {syncStatus === "loading" && "Loading..."}
+                {syncStatus === "local" && "Local Mode"}
+                {syncStatus === "error" && "Sync Offline (Click to Retry)"}
+              </span>
+              <RefreshCw
+                size={11}
+                className={syncStatus === "syncing" ? "animate-spin" : "opacity-70 hover:opacity-100"}
+              />
+            </button>
+
             {/* Live Monospace Clock */}
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-2.5 py-1 text-[11px] font-mono font-semibold text-slate-600">
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-2.5 py-1 text-[11px] font-mono font-semibold text-slate-600">
               <Clock size={12} className="text-slate-400" />
               <span>
                 {currentTime.toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}

@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { initializeFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence, setLogLevel } from "firebase/firestore";
-import { ERPState } from "./types";
+import { initializeFirestore, doc, getDoc, setDoc, onSnapshot, setLogLevel } from "firebase/firestore";
+import { ERPState, BackupLog } from "./types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBn7f6PE_obKikeLWU-LhKj9mbKECYS1Yg",
@@ -18,19 +18,6 @@ export const db = initializeFirestore(app, {
 
 // Set log level to suppress non-critical warnings
 setLogLevel("error");
-
-// Enable offline persistence for seamless offline execution
-if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === "failed-precondition") {
-      console.warn("Firestore offline persistence: Multiple tabs open, persistence enabled in first tab only.");
-    } else if (err.code === "unimplemented") {
-      console.warn("Firestore offline persistence: Browser does not support persistent storage.");
-    } else {
-      console.warn("Firestore offline persistence failed to enable:", err);
-    }
-  });
-}
 
 const DEFAULT_DOC_ID = "divine_traders_state";
 
@@ -60,7 +47,7 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -75,7 +62,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error("Firestore Error: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  return errInfo;
 }
 
 export async function loadStateFromFirestore(docId?: string | null): Promise<ERPState | null> {
@@ -117,8 +104,8 @@ export async function loadStateFromFirestore(docId?: string | null): Promise<ERP
     return state;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
+    return null;
   }
-  return null;
 }
 
 export async function saveStateToFirestore(state: ERPState, docId?: string | null): Promise<void> {
@@ -130,44 +117,69 @@ export async function saveStateToFirestore(state: ERPState, docId?: string | nul
     // 1. Save core operational state (keeping latest 50 logs/history in core for offline fallback)
     const trimmedLogs = (activityLogs || []).slice(0, 50);
     const trimmedHistory = (loginHistory || []).slice(0, 25);
+    const lightweightBackups: BackupLog[] = (backups || []).slice(0, 10).map((b) => ({
+      id: b.id,
+      date: b.date,
+      time: b.time,
+      size: b.size,
+      filename: b.filename,
+      type: b.type,
+      data: "", // Omit bulky payload from core state doc
+      createdBy: b.createdBy,
+      databaseVersion: b.databaseVersion,
+      status: b.status
+    }));
+
     const stateToSave: ERPState = {
       ...coreState,
       activityLogs: trimmedLogs,
       loginHistory: trimmedHistory,
-      backups: backups || []
+      backups: lightweightBackups
     };
 
     const docRef = doc(db, "erp", id);
-    await setDoc(docRef, stateToSave);
+    await setDoc(docRef, stateToSave, { merge: true });
 
     // 2. Save full activity logs & login history into auxiliary document erp/${id}_logs
-    if (activityLogs || loginHistory) {
+    if (activityLogs && activityLogs.length > 0) {
       try {
         const logsRef = doc(db, "erp", `${id}_logs`);
         await setDoc(logsRef, {
           activityLogs: activityLogs || [],
           loginHistory: loginHistory || [],
           updatedAt: new Date().toISOString()
-        });
+        }, { merge: true });
       } catch (logErr) {
         console.warn("Failed to write auxiliary logs document:", logErr);
       }
     }
 
     // 3. Save backups into auxiliary document erp/${id}_backups
-    if (backups) {
+    if (backups && backups.length > 0) {
       try {
         const backupsRef = doc(db, "erp", `${id}_backups`);
         await setDoc(backupsRef, {
           backups: backups || [],
           updatedAt: new Date().toISOString()
-        });
+        }, { merge: true });
       } catch (backupErr) {
         console.warn("Failed to write auxiliary backups document:", backupErr);
       }
     }
-  } catch (error) {
+  } catch (error: any) {
+    const errMessage = error?.message || String(error);
+    if (errMessage.includes("resource-exhausted") || errMessage.includes("Quota exceeded") || errMessage.includes("quota")) {
+      console.warn("Firestore Quota Exceeded. Switching to local state caching mode:", errMessage);
+      // Save to localStorage as seamless fallback
+      try {
+        localStorage.setItem("divine_traders_erp_offline_state", JSON.stringify(state));
+      } catch (e) {
+        // ignore
+      }
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -183,7 +195,6 @@ export function subscribeToStateChanges(
     docRef,
     async (snapshot) => {
       if (!snapshot.exists()) {
-        callback(null);
         return;
       }
 
@@ -212,11 +223,7 @@ export function subscribeToStateChanges(
       callback(state);
     },
     (error) => {
-      try {
-        handleFirestoreError(error, OperationType.GET, path);
-      } catch (err) {
-        console.error("Firestore Subscription Error caught:", err);
-      }
+      handleFirestoreError(error, OperationType.GET, path);
     }
   );
 }

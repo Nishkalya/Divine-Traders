@@ -26,6 +26,7 @@ import {
   Database,
   Coins,
   Building2,
+  History,
 } from "lucide-react";
 import { TeamMemberPermissions } from "../types";
 
@@ -76,6 +77,7 @@ export default function Sidebar({
     { id: "company-funding", label: "Company Funding", icon: Coins },
     { id: "production", label: "Production Logs", icon: ArrowLeftRight },
     { id: "admin-users", label: "User Module & Admin", icon: ShieldCheck },
+    { id: "audit-log", label: "Audit Log & Trail", icon: History },
     { id: "data-backup", label: "Data Backup & Restore", icon: Database },
   ];
 
@@ -102,6 +104,7 @@ export default function Sidebar({
     "company-funding": "companyFunding",
     "admin-users": "adminUsers",
     "production": "production",
+    "audit-log": "auditLog",
     "data-backup": "dataBackup",
   };
 

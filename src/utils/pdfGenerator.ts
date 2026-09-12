@@ -60,7 +60,6 @@ export async function downloadDocumentPDF(
     return;
   }
 
-  // Ensure targetElement is visible and printable
   const element = targetElement;
 
   // Temporarily hide elements marked with .no-print
@@ -80,20 +79,20 @@ export async function downloadDocumentPDF(
   const originalWidth = element.style.width;
 
   // Set explicit dimensions for high-resolution A4 capture
-  const targetWidth = options.width || 980;
+  const targetWidth = options.width || 900;
   element.style.overflow = "visible";
   element.style.height = "auto";
   element.style.maxHeight = "none";
   element.style.boxShadow = "none";
   element.style.border = "none";
   element.style.borderRadius = "0";
-  element.style.padding = "20px";
+  element.style.padding = "16px";
   element.style.width = `${targetWidth}px`;
 
   try {
-    // Render HTML element to high-DPI canvas
+    // Render HTML element to high-DPI canvas using html2canvas-pro
     const canvas = await html2canvas(element, {
-      scale: options.scale || 2.5, // 2.5x scale for ultra-crisp 300 DPI text & borders
+      scale: options.scale || 2.5, // 2.5x scale for ultra-crisp 300 DPI text, tables & borders
       useCORS: true,
       allowTaint: true,
       logging: false,
@@ -101,7 +100,7 @@ export async function downloadDocumentPDF(
       windowWidth: targetWidth + 40,
       windowHeight: Math.max(element.scrollHeight, 1200),
       onclone: (clonedDoc) => {
-        // 1. Sanitize all <style> elements in cloned document so html2canvas doesn't discard stylesheets
+        // Sanitize all <style> elements in cloned document so html2canvas doesn't discard stylesheets
         const styleSheets = clonedDoc.querySelectorAll("style");
         styleSheets.forEach((styleTag) => {
           if (styleTag.textContent) {
@@ -109,7 +108,7 @@ export async function downloadDocumentPDF(
           }
         });
 
-        // 2. Map live element computed styles to cloned DOM nodes
+        // Map live element computed styles safely without overwriting valid backgrounds or table cells
         const liveNodes = element.querySelectorAll("*");
         const clonedArea = clonedDoc.querySelector(".printable-area") || clonedDoc.body;
         const clonedNodes = clonedArea.querySelectorAll("*");
@@ -119,30 +118,14 @@ export async function downloadDocumentPDF(
           if (liveEl && clonedEl && clonedEl.style) {
             const comp = window.getComputedStyle(liveEl);
 
-            // Background color
-            if (comp.backgroundColor && comp.backgroundColor !== "rgba(0, 0, 0, 0)" && comp.backgroundColor !== "transparent") {
-              clonedEl.style.backgroundColor = convertOklchColor(comp.backgroundColor);
+            const bg = comp.backgroundColor;
+            if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
+              clonedEl.style.backgroundColor = convertOklchColor(bg);
             }
 
-            // Text color
             if (comp.color) {
               clonedEl.style.color = convertOklchColor(comp.color);
             }
-
-            // Border color & style
-            if (comp.borderColor && comp.borderStyle !== "none" && comp.borderWidth !== "0px") {
-              clonedEl.style.borderColor = convertOklchColor(comp.borderColor);
-              clonedEl.style.borderStyle = comp.borderStyle;
-              clonedEl.style.borderWidth = comp.borderWidth;
-            }
-
-            // Font & typography
-            if (comp.fontWeight) clonedEl.style.fontWeight = comp.fontWeight;
-            if (comp.fontSize) clonedEl.style.fontSize = comp.fontSize;
-            if (comp.fontFamily) clonedEl.style.fontFamily = comp.fontFamily;
-
-            // Alignment & display
-            if (comp.textAlign) clonedEl.style.textAlign = comp.textAlign;
           }
         });
       },
@@ -168,7 +151,7 @@ export async function downloadDocumentPDF(
     const pdfWidth = 210; // A4 width in mm
     const pdfHeight = 297; // A4 height in mm
 
-    // Compute scaled image height in mm
+    // Compute scaled image height in mm preserving aspect ratio
     const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
     if (imgHeight <= pdfHeight) {
