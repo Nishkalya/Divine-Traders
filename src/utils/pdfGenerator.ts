@@ -79,26 +79,26 @@ export async function downloadDocumentPDF(
   const originalWidth = element.style.width;
 
   // Set explicit dimensions for high-resolution A4 capture
-  const targetWidth = options.width || 900;
+  const targetWidth = options.width || 1080;
   element.style.overflow = "visible";
   element.style.height = "auto";
   element.style.maxHeight = "none";
   element.style.boxShadow = "none";
   element.style.border = "none";
   element.style.borderRadius = "0";
-  element.style.padding = "16px";
+  element.style.padding = "24px";
   element.style.width = `${targetWidth}px`;
 
   try {
-    // Render HTML element to high-DPI canvas using html2canvas-pro
+    // Render HTML element to high-DPI canvas using html2canvas-pro with robust full height
     const canvas = await html2canvas(element, {
       scale: options.scale || 2.5, // 2.5x scale for ultra-crisp 300 DPI text, tables & borders
       useCORS: true,
       allowTaint: true,
       logging: false,
       backgroundColor: "#ffffff",
-      windowWidth: targetWidth + 40,
-      windowHeight: Math.max(element.scrollHeight, 1200),
+      windowWidth: targetWidth + 60,
+      windowHeight: Math.max(element.scrollHeight, element.offsetHeight, 2400),
       onclone: (clonedDoc) => {
         // Sanitize all <style> elements in cloned document so html2canvas doesn't discard stylesheets
         const styleSheets = clonedDoc.querySelectorAll("style");
@@ -108,7 +108,7 @@ export async function downloadDocumentPDF(
           }
         });
 
-        // Map live element computed styles safely without overwriting valid backgrounds or table cells
+        // Map live element computed styles safely, ensuring sub-total rows are transparent
         const liveNodes = element.querySelectorAll("*");
         const clonedArea = clonedDoc.querySelector(".printable-area") || clonedDoc.body;
         const clonedNodes = clonedArea.querySelectorAll("*");
@@ -125,6 +125,28 @@ export async function downloadDocumentPDF(
 
             if (comp.color) {
               clonedEl.style.color = convertOklchColor(comp.color);
+            }
+
+            // Check if this element is a subtotal/sub-total row or cell
+            const textContent = liveEl.textContent || "";
+            const isSubtotal = textContent.includes("Sub-total") || textContent.includes("Sub Total") || textContent.includes("SUB TOTAL");
+
+            if (liveEl.tagName === "TR") {
+              clonedEl.style.display = comp.display || "table-row";
+              clonedEl.style.visibility = "visible";
+              if (isSubtotal) {
+                clonedEl.style.backgroundColor = "transparent";
+              }
+            } else if (liveEl.tagName === "TD" || liveEl.tagName === "TH") {
+              clonedEl.style.display = comp.display || "table-cell";
+              clonedEl.style.visibility = "visible";
+              clonedEl.style.boxSizing = "border-box";
+              
+              const trParent = liveEl.closest("tr");
+              const parentText = trParent?.textContent || "";
+              if (parentText.includes("Sub-total") || parentText.includes("Sub Total") || parentText.includes("SUB TOTAL")) {
+                clonedEl.style.backgroundColor = "transparent";
+              }
             }
           }
         });
